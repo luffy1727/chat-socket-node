@@ -1,0 +1,12 @@
+{
+  "name": "chat-socket-node-cli",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": {
+    "socketcli": "./index.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.5",
+    "@grpc/proto-loader": "^0.7.13"
+  }
+}

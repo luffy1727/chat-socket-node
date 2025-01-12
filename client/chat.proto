@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+service ChatService {
+  rpc JoinRoom (JoinRoomRequest) returns (JoinRoomResponse);
+}
+
+message JoinRoomRequest {
+  string username = 1;
+  string room = 2;
+}
+
+message JoinRoomResponse {
+  string message = 1;
+}
