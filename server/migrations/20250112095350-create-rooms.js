@@ -1,23 +1,19 @@
-'use strict';
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Rooms', {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.createTable('rooms', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
-        type: Sequelize.INTEGER,
+        type: Sequelize.INTEGER
       },
       name: {
         type: Sequelize.STRING,
-        allowNull: false,
-        unique: true,
+        allowNull: false
       }
     });
   },
-
-  async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Rooms');
-  },
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.dropTable('rooms');
+  }
 };
