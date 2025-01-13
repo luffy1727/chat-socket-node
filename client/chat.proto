@@ -1,14 +1,33 @@
 syntax = "proto3";
 
 service ChatService {
-  rpc JoinRoom (JoinRoomRequest) returns (JoinRoomResponse);
+  rpc JoinRoom (JoinRoomRequest) returns (stream ChatMessage);
+  rpc SendMessage (ChatMessage) returns (SendResponse);
+  rpc LeaveRoom (LeaveRequest) returns (LeaveResponse);
 }
 
 message JoinRoomRequest {
   string username = 1;
-  string room = 2;
+  string roomName = 2;
 }
 
-message JoinRoomResponse {
-  string message = 1;
+message ChatMessage {
+  string username = 1;
+  string roomName = 2;
+  string content = 3;
+}
+
+message SendResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message LeaveRequest {
+  string username = 1;
+  string roomName = 2;
+}
+
+message LeaveResponse {
+  bool success = 1;
+  string error = 2;
 }

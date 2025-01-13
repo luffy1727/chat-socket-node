@@ -1,55 +1,87 @@
 const { User, Room, UserRoom } = require('../models');
+const roomSubscriptions = new Map(); // to store room subscription calls.
 
-/**
- * Connect a user to a room in the database.
- * @param {object} call - The gRPC call object.
- * @param {function} callback - The callback to return the response.
- */
-async function joinRoom(call, callback) {
-  const { username, roomName } = call.request;
+class ChatServer {
+  async joinRoom(call, callback) {
+    const { username, roomName } = call.request;
+  
+    try {
+      const [user] = await User.findOrCreate({
+        where: { username },
+      });
+  
+      console.log(user)
+  
+      const [room] = await Room.findOrCreate({
+        where: { name: roomName || 'main' },
+      });
 
-  try {
-    const [user] = await User.findOrCreate({
-      where: { username },
-    });
-    
-    console.log(user)
+      await UserRoom.findOrCreate({
+        where: {
+          userId: user.id,
+          roomId: room.id,
+        },
+      });
+  
+      if (!roomSubscriptions.has(roomName)) {
+        roomSubscriptions.set(roomName, new Map());
+      }
+      roomSubscriptions.get(roomName).set(username, call);
+            
+      call.on('cancelled', async () => {
+        // Handle client disconnect herre
+      });
+  
+      const joinMessage = {
+        username: 'System',
+        roomName,
+        content: `${username} joined the room`,
+      };
+      this.broadcastToRoom(roomName, joinMessage)
+    } catch (error) {
+      console.error('Error connecting user to room:', error);
+      callback({
+        code: 500,
+        message: 'Internal server error',
+      });
+    }
+  };
 
-    const [room] = await Room.findOrCreate({
-      where: { name: roomName || 'main' },
-    });
+  async sendMessage(call, callback) {
+    const { username, roomName, content } = call.request;
 
-    console.log(room);
+    try {
+      // Verify user is in room
+      if (!roomSubscriptions.get(roomName)?.has(username)) {
+        callback(new Error('User not in room'), null);
+        return;
+      }
 
-    // Create the association in UserRoom
-    await UserRoom.findOrCreate({
-      where: {
-        userId: user.id,
-        roomId: room.id,
-      },
-    });
+      const message = {
+        username,
+        roomName,
+        content
+      };
 
-    // Respond with the user and room data
-    callback(null, {
-      message: `${username} connected to room: ${roomName}`,
-      user: {
-        id: user.id,
-        username: user.username,
-      },
-      room: {
-        id: room.id,
-        name: room.name,
-      },
-    });
-  } catch (error) {
-    console.error('Error connecting user to room:', error);
-    callback({
-      code: 500,
-      message: 'Internal server error',
-    });
+      this.broadcastToRoom(roomName, message);
+      callback(null, { success: true });
+
+    } catch (error) {
+      console.error('Error in sendMessage:', error);
+      callback(error, null);
+    }
+  }
+
+  broadcastToRoom(roomName, message) {
+    const roomSubs = roomSubscriptions.get(roomName);
+    if (roomSubs) {
+      roomSubs.forEach(call => {
+        call.write(message);
+      });
+    }
   }
 }
 
 module.exports = {
-  joinRoom,
+  ChatServer,
 };
