@@ -72,6 +72,49 @@ class ChatServer {
     }
   }
 
+  async leaveRoom(call, callback) {
+    const { username, roomName } = call.request;
+    const leaveMessage = {
+      username: 'System',
+      roomName,
+      content: `${username} left the room`,
+    };
+
+    this.broadcastToRoom(roomName, leaveMessage);
+    try {
+      await this.handleDisconnect(username, roomName, call);
+      callback(null, { success: true });
+    } catch (error) {
+      console.error('Error in leaveRoom:', error);
+      callback(error, null);
+    }
+  }
+
+  async handleDisconnect(username, roomName) {
+    try {  
+      const roomSubs = roomSubscriptions.get(roomName);
+      if (roomSubs) {
+        roomSubs.delete(username);
+        if (roomSubs.size === 0) {
+          roomSubscriptions.delete(roomName);
+        }
+      }
+
+      const [user, room] = await Promise.all([
+        models.User.findOne({ where: { username } }),
+        models.Room.findOne({ where: { name: roomName } })
+      ]);
+
+      if (user && room) {
+        await models.UserRoom.destroy({
+          where: { userId: user.id, roomId: room.id }
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleDisconnect:', error);
+    }
+  }
+
   broadcastToRoom(roomName, message) {
     const roomSubs = roomSubscriptions.get(roomName);
     if (roomSubs) {
