@@ -11,12 +11,13 @@ const grpcObject = grpc.loadPackageDefinition(packageDefinition);
 class ChatClient {
   constructor() {
     this.client = new grpcObject.ChatService(
-      '10.217.82.207:1010',
+      '192.168.0.14:1010',
       grpc.credentials.createInsecure()
     );
     this.currentRoom = null;
     this.username = null;
     this.stream = null;
+    this.dmStream = null;
 
     // Setup readline interface
     this.rl = readline.createInterface({
@@ -28,10 +29,30 @@ class ChatClient {
   async start() {
     try {
       await this.login();
+      await this.subscribeToDMs();
       await this.showRoomMenu();
     } catch (error) {
       console.error('Error starting client:', error);
       this.cleanup();
+    }
+  }
+
+  async subscribeToDMs() {
+    try {
+      const request = { username: this.username };
+      this.dmStream = this.client.subscribeToDMs(request);
+
+      this.dmStream.on('data', (message) => {
+        console.log(`[DM from ${message.fromUser}]: ${message.content}`);
+      });
+
+      this.dmStream.on('error', (error) => {
+        console.error('DM Stream error:', error);
+      });
+
+      console.log('Subscribed to direct messages');
+    } catch (error) {
+      console.error('Error subscribing to DMs:', error);
     }
   }
 
@@ -100,6 +121,22 @@ class ChatClient {
     });
   }
 
+  async sendDM(toUser, content) {
+    const message = {
+      fromUser: this.username,
+      toUser: toUser,
+      content: content
+    };
+
+    this.client.sendDirectMessage(message, (error, response) => {
+      if (error) {
+        console.error('Error sending DM:', error);
+      } else if (!response.success) {
+        console.error('Failed to send DM:', response.error);
+      }
+    });
+  }
+
 
   async leaveRoom() {
     if (!this.currentRoom) {
@@ -128,11 +165,24 @@ class ChatClient {
     });
   }
 
+  async cleanup() {
+    if (this.currentRoom) {
+      await this.leaveRoom();
+    }
+    if (this.stream) {
+      this.stream.cancel();
+    }
+    if (this.dmStream) {
+      this.dmStream.cancel();
+    }
+    this.rl.close();
+  }
 
   async showRoomMenu() {
     console.log('\nAvailable commands:');
     console.log('/join <roomName> - Join a chat room');
     console.log('/leave - Leave current room');
+    console.log('/dm <username> <message> - Send a direct message');
     console.log('/quit - Exit application');
 
     this.rl.on('line', async (input) => {
@@ -141,14 +191,22 @@ class ChatClient {
         await this.joinRoom(roomName);
       } else if (input.startsWith('/leave')) {
         await this.leaveRoom();
-      } else if (input.startsWith('/dm')) {
-        // dm functionality here
+      } else if (input.startsWith('/dm ')) {
+        const parts = input.slice(4).trim().split(' ');
+        const toUser = parts[0];
+        const content = parts.slice(1).join(' ');
+        if (toUser && content) {
+          await this.sendDM(toUser, content);
+        } else {
+          console.log('Usage: /dm <username> <message>');
+        }
       } else if (input.startsWith('/quit')) {
-        // cleanup here
+        await this.cleanup();
+        process.exit(0);
       } else if (this.currentRoom) {
         await this.sendMessage(input);
       } else {
-        console.log('Please join a room first using /join <roomName>');
+        console.log('use /join <roomName> to chat');
       }
     });
   }

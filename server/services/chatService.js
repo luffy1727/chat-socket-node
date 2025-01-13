@@ -1,5 +1,6 @@
 const { User, Room, UserRoom } = require('../models');
-const roomSubscriptions = new Map(); // to store room subscription calls.
+const roomSubscriptions = new Map();
+const dmSubscriptions = new Map();
 
 class ChatServer {
   async joinRoom(call, callback) {
@@ -67,8 +68,69 @@ class ChatServer {
       callback(null, { success: true });
 
     } catch (error) {
-      console.error('Error in sendMessage:', error);
+      console.error('Error in sending message:', error);
       callback(error, null);
+    }
+  }
+
+  async sendDirectMessage(call, callback) {
+    const { fromUser, toUser, content } = call.request;
+
+    try {
+      const [sender, receiver] = await Promise.all([
+        User.findOne({ where: { username: fromUser } }),
+        User.findOne({ where: { username: toUser } })
+      ]);
+
+      if (!sender || !receiver) {
+        callback(null, { 
+          success: false, 
+          error: 'User not found' 
+        });
+        return;
+      }
+
+      const message = {
+        fromUser,
+        toUser,
+        content
+      };
+
+      const recipientCall = dmSubscriptions.get(toUser);
+      if (recipientCall) {
+        recipientCall.write(message);
+      }
+      callback(null, { success: true });
+    } catch (error) {
+      console.error('Error in sending dm:', error);
+      callback(null, { 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  }
+
+  async subscribeToDMs(call, callback) {
+    const { username } = call.request;
+
+    try {
+      const user = await User.findOrCreate({ 
+        where: { username } 
+      });
+
+      // Store the subscription
+      dmSubscriptions.set(username, call);
+
+      call.on('cancelled', () => {
+        dmSubscriptions.delete(username);
+      });
+
+    } catch (error) {
+      console.error('Error in subscribeToDirectMessages:', error);
+      callback({
+        code: 500,
+        message: 'Internal server error'
+      });
     }
   }
 
@@ -99,6 +161,7 @@ class ChatServer {
           roomSubscriptions.delete(roomName);
         }
       }
+      dmSubscriptions.delete(username);
 
       const [user, room] = await Promise.all([
         models.User.findOne({ where: { username } }),

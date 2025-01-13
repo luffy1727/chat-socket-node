@@ -4,6 +4,8 @@ service ChatService {
   rpc JoinRoom (JoinRoomRequest) returns (stream ChatMessage);
   rpc SendMessage (ChatMessage) returns (SendResponse);
   rpc LeaveRoom (LeaveRequest) returns (LeaveResponse);
+  rpc SendDirectMessage (DirectMessage) returns (SendResponse);
+  rpc SubscribeToDMs (SubscribeRequest) returns (stream DirectMessage);
 }
 
 message JoinRoomRequest {
@@ -30,4 +32,14 @@ message LeaveRequest {
 message LeaveResponse {
   bool success = 1;
   string error = 2;
+}
+
+message DirectMessage {
+  string fromUser = 1;
+  string toUser = 2;
+  string content = 3;
+}
+
+message SubscribeRequest {
+  string username = 1;
 }
